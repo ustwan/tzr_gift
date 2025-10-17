@@ -35,3 +35,7 @@ app.log
 *.bak
 data/
 
+# Старые файлы
+bot.py
+telegram_bot.py
+
