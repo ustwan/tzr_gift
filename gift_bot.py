@@ -381,11 +381,18 @@ async def analyze_presents(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     settings = load_settings()
     present_list = load_present_list()
-    present_names = set(present_list)
+    logger.info(f"!!! DEBUG: load_present_list() вернул: {present_list}")
+    logger.info(f"!!! DEBUG: Тип: {type(present_list)}")
     
-    # Логируем список подарков для диагностики
-    logger.info(f"Список подарков для открытия: {present_list}")
-    logger.info(f"Set подарков: {present_names}")
+    present_names = set(present_list)
+    logger.info(f"!!! DEBUG: set(present_list) = {present_names}")
+    
+    # Явно исключаем Mysterious Pumpkin из списка подарков для открытия
+    if "Mysterious Pumpkin" in present_names:
+        logger.warning("!!! ВНИМАНИЕ: 'Mysterious Pumpkin' найден в списке подарков! Удаляю!")
+        present_names.discard("Mysterious Pumpkin")
+    
+    logger.info(f"!!! DEBUG: Финальный список для открытия: {present_names}")
     
     msg = await query.message.reply_text(
         "📦 <b>Анализ подарков</b>\n\n🔄 Подключение к серверу...",
