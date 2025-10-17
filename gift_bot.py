@@ -1109,16 +1109,18 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         probs = analyzer.calculate_probabilities()
         predictions = analyzer.predict_next_opening(100)
         
+        sorted_probs = sorted(probs.items(), key=lambda x: x[1]['probability'], reverse=True)
+        sorted_pred = sorted(predictions.items(), key=lambda x: x[1]['expected'], reverse=True)
+        
         text = (
             f"📊 <b>ML Анализ дропа</b>\n\n"
             f"📈 Сессий: {stats['sessions_count']}\n"
             f"📦 Открыто: {stats['total_gifts']}\n\n"
-            f"<b>Топ-10 по вероятности:</b>\n\n"
+            f"<b>Все предметы ({len(sorted_probs)}) по вероятности:</b>\n\n"
         )
         
-        sorted_probs = sorted(probs.items(), key=lambda x: x[1]['probability'], reverse=True)
-        
-        for item, data in sorted_probs[:10]:
+        # Показываем все предметы
+        for item, data in sorted_probs:
             prob = data['probability']
             count = data['count']
             
@@ -1135,11 +1137,11 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"   {count} шт | {prob:.1f}%\n"
         
         text += (
-            f"\n<b>🔮 Прогноз на 100 подарков:</b>\n"
+            f"\n<b>🔮 Прогноз на 100 подарков (топ-20):</b>\n"
         )
         
-        sorted_pred = sorted(predictions.items(), key=lambda x: x[1]['expected'], reverse=True)
-        for item, data in sorted_pred[:5]:
+        # Показываем топ-20 в прогнозе (для экономии места)
+        for item, data in sorted_pred[:20]:
             text += f"  • {item}: ~{data['expected']:.0f} шт\n"
         
         keyboard = [
@@ -1147,7 +1149,56 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🏠 Меню", callback_data="menu")]
         ]
         
-        await message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+        # Telegram имеет лимит 4096 символов
+        if len(text) > 4000:
+            # Разбиваем на части
+            header = (
+                f"📊 <b>ML Анализ дропа</b>\n\n"
+                f"📈 Сессий: {stats['sessions_count']}\n"
+                f"📦 Открыто: {stats['total_gifts']}\n\n"
+                f"<b>Все предметы ({len(sorted_probs)}) по вероятности:</b>\n\n"
+            )
+            
+            # Часть 1: все предметы
+            part1 = header
+            for item, data in sorted_probs:
+                prob = data['probability']
+                count = data['count']
+                
+                if prob >= 50:
+                    emoji = "🔴"
+                elif prob >= 20:
+                    emoji = "🟠"
+                elif prob >= 10:
+                    emoji = "🟡"
+                else:
+                    emoji = "🟢"
+                
+                item_line = f"{emoji} <b>{item}</b>\n   {count} шт | {prob:.1f}%\n"
+                
+                # Если добавление превысит лимит - отправляем текущую часть
+                if len(part1) + len(item_line) > 3800:
+                    await message.reply_text(part1, parse_mode="HTML")
+                    part1 = ""
+                
+                part1 += item_line
+            
+            # Отправляем остаток предметов
+            if part1:
+                await message.reply_text(part1, parse_mode="HTML")
+            
+            # Часть 2: прогноз
+            part2 = f"\n<b>🔮 Прогноз на 100 подарков (топ-20):</b>\n"
+            for item, data in sorted_pred[:20]:
+                part2 += f"  • {item}: ~{data['expected']:.0f} шт\n"
+            
+            await message.reply_text(
+                part2,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+        else:
+            await message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
         
     except ImportError:
         text = (
