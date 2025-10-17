@@ -1155,6 +1155,17 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         probs = analyzer.calculate_probabilities(stats)
         predictions = analyzer.predict_next_opening(100, stats)
         
+        if not probs or not predictions:
+            keyboard = [[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]
+            await message.reply_text(
+                "📊 <b>ML Статистика</b>\n\n"
+                "❌ Недостаточно данных для анализа.\n\n"
+                "Откройте подарки через <b>Анализ</b>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+            return
+        
         sorted_probs = sorted(probs.items(), key=lambda x: x[1]['probability'], reverse=True)
         sorted_pred = sorted(predictions.items(), key=lambda x: x[1]['expected'], reverse=True)
         
@@ -1307,6 +1318,17 @@ async def show_statistics_all(update: Update, context: ContextTypes.DEFAULT_TYPE
         
         probs = analyzer.calculate_probabilities(stats)
         predictions = analyzer.predict_next_opening(100, stats)
+        
+        if not probs or not predictions:
+            keyboard = [[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]
+            await query.message.reply_text(
+                "📊 <b>ML Статистика</b>\n\n"
+                "❌ Недостаточно данных для анализа.\n\n"
+                "Откройте подарки через <b>Анализ</b>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+            return
         
         sorted_probs = sorted(probs.items(), key=lambda x: x[1]['probability'], reverse=True)
         sorted_pred = sorted(predictions.items(), key=lambda x: x[1]['expected'], reverse=True)
