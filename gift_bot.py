@@ -1272,8 +1272,11 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "<i>Для игры Timezero Reloaded</i>\n\n"
         
         "⚠️ <b>ВАЖНО ПЕРЕД НАЧАЛОМ:</b>\n"
-        "Рекомендуется <b>очистить инвентарь</b> перед анализом подарков!\n"
-        "Используйте функцию 🧹 Очистка.\n\n"
+        "1️⃣ Рекомендуется <b>очистить инвентарь</b> перед анализом подарков!\n"
+        "   Используйте функцию 🧹 Очистка.\n\n"
+        "2️⃣ <b>⚠️ ТОЛЬКО ОДИН ПОЛЬЗОВАТЕЛЬ ОДНОВРЕМЕННО!</b>\n"
+        "   Бот использует один игровой аккаунт.\n"
+        "   Дождитесь завершения операций других пользователей.\n\n"
         
         "━━━━━━━━━━━━━━━━━━━━━\n\n"
         
@@ -1364,11 +1367,21 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard = [[InlineKeyboardButton("🏠 Главное меню", callback_data="menu")]]
     
-    await update.effective_message.reply_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode="HTML"
-    )
+    # Проверяем тип вызова - callback query или обычное сообщение
+    query = update.callback_query
+    if query:
+        await query.answer()
+        await query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+    else:
+        await update.effective_message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
 
 # ============================================================================
 # УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ (АДМИНЫ)
