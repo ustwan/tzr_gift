@@ -43,9 +43,25 @@ class DropAnalyzer:
             "sessions_count": len(self.data["sessions"])
         }
     
-    def calculate_probabilities(self):
+    def get_last_session_stats(self):
+        """Получить статистику только последней сессии"""
+        if not self.data.get("sessions"):
+            return None
+        
+        last_session = self.data["sessions"][-1]
+        
+        return {
+            "total_gifts": last_session["total_opened"],
+            "total_items": dict(last_session["loot"]),
+            "sessions_count": 1,
+            "timestamp": last_session.get("timestamp", "")
+        }
+    
+    def calculate_probabilities(self, stats=None):
         """Вычисление вероятностей дропа каждого предмета"""
-        stats = self.get_total_stats()
+        if stats is None:
+            stats = self.get_total_stats()
+        
         if not stats:
             return None
         
@@ -77,12 +93,12 @@ class DropAnalyzer:
         else:
             return "common"  # Обычный (редко)
     
-    def predict_next_opening(self, n_gifts=100):
+    def predict_next_opening(self, n_gifts=100, stats=None):
         """
         Предсказание ожидаемого дропа при открытии N подарков
         Использует байесовский подход
         """
-        probs = self.calculate_probabilities()
+        probs = self.calculate_probabilities(stats)
         if not probs:
             return None
         

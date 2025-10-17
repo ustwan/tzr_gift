@@ -1083,7 +1083,7 @@ async def present_list_update_confirm(update: Update, context: ContextTypes.DEFA
 # ============================================================================
 
 async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ML статистика дропа"""
+    """ML статистика дропа - только последняя сессия"""
     query = update.callback_query if update.callback_query else None
     message = query.message if query else update.message
     
@@ -1094,7 +1094,8 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from drop_analyzer import DropAnalyzer
         analyzer = DropAnalyzer()
         
-        stats = analyzer.get_total_stats()
+        # Показываем только последнюю сессию
+        stats = analyzer.get_last_session_stats()
         if not stats:
             keyboard = [[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]
             await message.reply_text(
@@ -1106,15 +1107,26 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return
         
-        probs = analyzer.calculate_probabilities()
-        predictions = analyzer.predict_next_opening(100)
+        probs = analyzer.calculate_probabilities(stats)
+        predictions = analyzer.predict_next_opening(100, stats)
         
         sorted_probs = sorted(probs.items(), key=lambda x: x[1]['probability'], reverse=True)
         sorted_pred = sorted(predictions.items(), key=lambda x: x[1]['expected'], reverse=True)
         
+        # Получаем timestamp если есть
+        session_time = stats.get('timestamp', '')
+        time_str = ""
+        if session_time:
+            from datetime import datetime
+            try:
+                dt = datetime.fromisoformat(session_time)
+                time_str = f" ({dt.strftime('%H:%M')})"
+            except:
+                pass
+        
         text = (
-            f"📊 <b>ML Анализ дропа</b>\n\n"
-            f"📈 Сессий: {stats['sessions_count']}\n"
+            f"📊 <b>ML Анализ дропа</b>\n"
+            f"<i>Последняя сессия{time_str}</i>\n\n"
             f"📦 Открыто: {stats['total_gifts']}\n\n"
             f"<b>Все предметы ({len(sorted_probs)}) по вероятности:</b>\n\n"
         )
@@ -1144,8 +1156,15 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for item, data in sorted_pred[:20]:
             text += f"  • {item}: ~{data['expected']:.0f} шт\n"
         
+        total_sessions = analyzer.get_total_stats()
+        total_count = total_sessions['sessions_count'] if total_sessions else 0
+        
         keyboard = [
             [InlineKeyboardButton("🔄 Обновить", callback_data="stats")],
+            [
+                InlineKeyboardButton(f"📊 Все сессии ({total_count})", callback_data="stats_all"),
+                InlineKeyboardButton("🗑️ Сбросить", callback_data="stats_reset")
+            ],
             [InlineKeyboardButton("🏠 Меню", callback_data="menu")]
         ]
         
@@ -1153,8 +1172,8 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if len(text) > 4000:
             # Разбиваем на части
             header = (
-                f"📊 <b>ML Анализ дропа</b>\n\n"
-                f"📈 Сессий: {stats['sessions_count']}\n"
+                f"📊 <b>ML Анализ дропа</b>\n"
+                f"<i>Последняя сессия{time_str}</i>\n\n"
                 f"📦 Открыто: {stats['total_gifts']}\n\n"
                 f"<b>Все предметы ({len(sorted_probs)}) по вероятности:</b>\n\n"
             )
@@ -1213,6 +1232,128 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(
             f"❌ <b>Ошибка:</b>\n<code>{str(e)}</code>",
             reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+
+async def show_statistics_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ML статистика за все сессии"""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        from drop_analyzer import DropAnalyzer
+        analyzer = DropAnalyzer()
+        
+        # Показываем все сессии
+        stats = analyzer.get_total_stats()
+        if not stats:
+            keyboard = [[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]
+            await query.message.reply_text(
+                "📊 <b>ML Статистика</b>\n\n"
+                "❌ Нет данных.\n\n"
+                "Откройте подарки через <b>Анализ</b>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+            return
+        
+        probs = analyzer.calculate_probabilities(stats)
+        predictions = analyzer.predict_next_opening(100, stats)
+        
+        sorted_probs = sorted(probs.items(), key=lambda x: x[1]['probability'], reverse=True)
+        sorted_pred = sorted(predictions.items(), key=lambda x: x[1]['expected'], reverse=True)
+        
+        text = (
+            f"📊 <b>ML Анализ дропа</b>\n"
+            f"<i>Все сессии</i>\n\n"
+            f"📈 Сессий: {stats['sessions_count']}\n"
+            f"📦 Открыто: {stats['total_gifts']}\n\n"
+            f"<b>Топ-30 предметов:</b>\n\n"
+        )
+        
+        # Показываем топ-30 для всех сессий
+        for item, data in sorted_probs[:30]:
+            prob = data['probability']
+            count = data['count']
+            
+            if prob >= 50:
+                emoji = "🔴"
+            elif prob >= 20:
+                emoji = "🟠"
+            elif prob >= 10:
+                emoji = "🟡"
+            else:
+                emoji = "🟢"
+            
+            text += f"{emoji} <b>{item}</b>\n   {count} шт | {prob:.1f}%\n"
+        
+        if len(sorted_probs) > 30:
+            text += f"\n<i>...и еще {len(sorted_probs) - 30} предметов</i>\n"
+        
+        text += f"\n<b>🔮 Прогноз на 100 подарков (топ-10):</b>\n"
+        for item, data in sorted_pred[:10]:
+            text += f"  • {item}: ~{data['expected']:.0f} шт\n"
+        
+        keyboard = [
+            [InlineKeyboardButton("🔄 Обновить", callback_data="stats_all")],
+            [
+                InlineKeyboardButton("📊 Последняя сессия", callback_data="stats"),
+                InlineKeyboardButton("🗑️ Сбросить", callback_data="stats_reset")
+            ],
+            [InlineKeyboardButton("🏠 Меню", callback_data="menu")]
+        ]
+        
+        await query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+        
+    except Exception as e:
+        keyboard = [[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]
+        await query.message.reply_text(
+            f"❌ <b>Ошибка:</b>\n<code>{str(e)}</code>",
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+
+async def reset_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Сброс всей статистики"""
+    query = update.callback_query
+    await query.answer()
+    
+    keyboard = [
+        [
+            InlineKeyboardButton("✅ Да, сбросить", callback_data="stats_reset_confirm"),
+            InlineKeyboardButton("❌ Отмена", callback_data="stats")
+        ]
+    ]
+    
+    await query.message.reply_text(
+        "🗑️ <b>Сброс статистики</b>\n\n"
+        "⚠️ Это удалит ВСЕ данные о дропе!\n"
+        "Отменить будет невозможно.\n\n"
+        "Вы уверены?",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode="HTML"
+    )
+
+async def reset_statistics_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Подтверждение сброса статистики"""
+    query = update.callback_query
+    await query.answer()
+    
+    try:
+        # Очищаем файл
+        with open("drop_statistics.json", "w", encoding="utf-8") as f:
+            json.dump({"sessions": []}, f, ensure_ascii=False, indent=2)
+        
+        await query.message.reply_text(
+            "✅ <b>Статистика сброшена</b>\n\n"
+            "Все данные удалены.",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]),
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await query.message.reply_text(
+            f"❌ <b>Ошибка:</b>\n<code>{str(e)}</code>",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]),
             parse_mode="HTML"
         )
 
@@ -1823,6 +1964,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await present_list_update_confirm(update, context)
     elif query.data == "stats":
         await show_statistics(update, context)
+    elif query.data == "stats_all":
+        await show_statistics_all(update, context)
+    elif query.data == "stats_reset":
+        await reset_statistics(update, context)
+    elif query.data == "stats_reset_confirm":
+        await reset_statistics_confirm(update, context)
     elif query.data == "export":
         await export_menu(update, context)
     elif query.data == "export_stats":
