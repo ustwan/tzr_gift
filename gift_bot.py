@@ -180,6 +180,16 @@ def get_inventory_items_socket(sock, include_all_sections=False):
 
 def open_gift_recursive(sock, gift_id, present_names):
     """Открывает подарок рекурсивно"""
+    # Черный список - предметы которые НЕ должны учитываться (перки из section 100000)
+    PERK_BLACKLIST = {
+        "Capacity", "Energy weapons", "Panic", "Battle blindness", 
+        "Heavy weapons", "Penalty-free shooting", "Radioation immunity",
+        "Moving speed", "Rifles/SMGs", "Light weapons", "Insectary",
+        "Looting bonus", "Run fatigue", "Throwing weapons", "Melee weapons",
+        "Lab Chip U-INF M1", "Lab Chip U-PRT M1", "Lab Chip U-RNG M1",
+        "Lab Chip U-RDS M1", "Lab Chip U-GRP M1", "Lab Chip U-DMG M1"
+    }
+    
     use_xml = f'<USE gift="{gift_id}" />\x00'
     sock.sendall(use_xml.encode("utf-8"))
     time.sleep(0.05)
@@ -211,6 +221,11 @@ def open_gift_recursive(sock, gift_id, present_names):
         txt_val = txt.group(1) if txt else ""
         id_val = id_.group(1) if id_ else ""
         count_val = int(count.group(1)) if count else 1
+        
+        # Пропускаем перки (черный список)
+        if txt_val in PERK_BLACKLIST:
+            logger.info(f"Пропускаю перк: {txt_val}")
+            continue
         
         if txt_val in present_names:
             logger.info(f"Открываю вложенный подарок: {txt_val} (id={id_val})")
