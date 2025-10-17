@@ -213,6 +213,7 @@ def open_gift_recursive(sock, gift_id, present_names):
         count_val = int(count.group(1)) if count else 1
         
         if txt_val in present_names:
+            logger.info(f"Открываю вложенный подарок: {txt_val} (id={id_val})")
             nested_loot, nested_count = open_gift_recursive(sock, id_val, present_names)
             loot.extend(nested_loot)
             nested_opened += nested_count
@@ -366,7 +367,12 @@ async def analyze_presents(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     settings = load_settings()
-    present_names = set(load_present_list())
+    present_list = load_present_list()
+    present_names = set(present_list)
+    
+    # Логируем список подарков для диагностики
+    logger.info(f"Список подарков для открытия: {present_list}")
+    logger.info(f"Set подарков: {present_names}")
     
     msg = await query.message.reply_text(
         "📦 <b>Анализ подарков</b>\n\n🔄 Подключение к серверу...",
