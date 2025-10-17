@@ -188,6 +188,11 @@ def open_gift_recursive(sock, gift_id, present_names):
         "Looting bonus", "Run fatigue", "Throwing weapons", "Melee weapons"
     }
     
+    # Список предметов которые НЕ должны открываться (но учитываются в статистике)
+    NON_OPENABLE_ITEMS = {
+        "Mysterious Pumpkin"  # Предмет дропа, НЕ подарок!
+    }
+    
     use_xml = f'<USE gift="{gift_id}" />\x00'
     sock.sendall(use_xml.encode("utf-8"))
     time.sleep(0.05)
@@ -225,7 +230,11 @@ def open_gift_recursive(sock, gift_id, present_names):
             logger.info(f"Пропускаю перк: {txt_val}")
             continue
         
-        if txt_val in present_names:
+        # НЕ открываем предметы из NON_OPENABLE_ITEMS, даже если они в present_names
+        if txt_val in NON_OPENABLE_ITEMS:
+            logger.info(f"Предмет {txt_val} в NON_OPENABLE - НЕ открываю, только учитываю")
+            loot.append((txt_val, count_val))
+        elif txt_val in present_names:
             logger.info(f"Открываю вложенный подарок: {txt_val} (id={id_val})")
             nested_loot, nested_count = open_gift_recursive(sock, id_val, present_names)
             loot.extend(nested_loot)
