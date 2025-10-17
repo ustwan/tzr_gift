@@ -1,0 +1,19 @@
+{
+  "LOGIN_1": "Gift sender",
+  "KEY_1": "00FF56564B7B28B1793ABA40AAA9037516C5EA10",
+  "local_ip_1": "10.10.10.10",
+  "client_ver_1": "4871972",
+  "ver_1": "108",
+  "lang_1": "ru",
+  
+  "LOGIN_2": "Recipient gift",
+  "KEY_2": "00FF56564B7B28B1793ABA40AAA9037516C5EA10",
+  "local_ip_2": "20.20.20.20",
+  "client_ver_2": "4871972",
+  "ver_2": "108",
+  "lang_2": "ru",
+  
+  "HOST": "195.161.114.75",
+  "port": "5190"
+}
+

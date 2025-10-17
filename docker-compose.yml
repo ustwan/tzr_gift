@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  gift-bot:
+    build: .
+    container_name: gift_telegram_bot
+    restart: unless-stopped
+    
+    # Тома для персистентности данных
+    volumes:
+      - ./settings.json:/app/settings.json
+      - ./present_list.json:/app/present_list.json
+      - ./users.json:/app/users.json
+      - ./drop_statistics.json:/app/drop_statistics.json
+      - ./data:/app/data
+    
+    # Переменные окружения
+    environment:
+      - TZ=Europe/Moscow
+      - PYTHONUNBUFFERED=1
+    
+    # Логирование
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Сеть (если нужно взаимодействие с другими контейнерами)
+    networks:
+      - gift-network
+
+networks:
+  gift-network:
+    driver: bridge
+
