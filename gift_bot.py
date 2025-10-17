@@ -64,7 +64,17 @@ def load_present_list():
     """Загрузка списка подарков"""
     try:
         with open("present_list.json", "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+            
+            # Если это словарь с ключом "presents" (новый формат)
+            if isinstance(data, dict) and "presents" in data:
+                # Извлекаем имена из объектов
+                return [item["name"] if isinstance(item, dict) else item for item in data["presents"]]
+            # Если это просто массив строк (старый формат)
+            elif isinstance(data, list):
+                return data
+            else:
+                return ["Halloween box"]
     except:
         return ["Halloween box"]
 
