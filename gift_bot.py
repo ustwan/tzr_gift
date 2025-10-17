@@ -82,6 +82,10 @@ def save_drop_statistics(total_opened, loot):
         except:
             stats = {"sessions": []}
         
+        # Убедимся что ключ sessions существует
+        if "sessions" not in stats:
+            stats["sessions"] = []
+        
         session = {
             "timestamp": datetime.now().isoformat(),
             "total_opened": total_opened,
