@@ -428,19 +428,63 @@ async def analyze_presents(update: Update, context: ContextTypes.DEFAULT_TYPE):
         result_text = (
             f"✅ <b>Анализ завершен!</b>\n\n"
             f"📦 Открыто подарков: <b>{total_opened}</b>\n\n"
-            f"📊 <b>Получено:</b>\n"
+            f"📊 <b>Получено ({len(loot)} типов):</b>\n"
         )
         
         sorted_loot = sorted(loot.items(), key=lambda x: (-x[1], x[0]))
         
-        for item_name, item_count in sorted_loot[:30]:
+        # Показываем до 50 предметов основным списком
+        for item_name, item_count in sorted_loot[:50]:
             result_text += f"  • {item_name}: <code>{item_count}</code>\n"
         
-        if len(loot) > 30:
-            result_text += f"\n<i>...и еще {len(loot) - 30} типов</i>"
+        # Если больше 50 - показываем остальные компактно
+        if len(loot) > 50:
+            result_text += f"\n<b>Остальные предметы ({len(loot) - 50}):</b>\n"
+            remaining = sorted_loot[50:]
+            for item_name, item_count in remaining:
+                result_text += f"  • {item_name}: {item_count}\n"
         
         keyboard = [[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]
-        await msg.edit_text(result_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+        
+        # Telegram имеет лимит 4096 символов на сообщение
+        if len(result_text) > 4000:
+            # Если текст слишком длинный - отправляем в два сообщения
+            result_text_part1 = (
+                f"✅ <b>Анализ завершен!</b>\n\n"
+                f"📦 Открыто подарков: <b>{total_opened}</b>\n\n"
+                f"📊 <b>Получено ({len(loot)} типов):</b>\n"
+            )
+            
+            for item_name, item_count in sorted_loot:
+                result_text_part1 += f"  • {item_name}: <code>{item_count}</code>\n"
+            
+            # Разбиваем на части по ~3500 символов
+            max_len = 3500
+            parts = []
+            current_part = result_text_part1[:max_len]
+            remaining_text = result_text_part1[max_len:]
+            
+            while remaining_text:
+                parts.append(current_part)
+                current_part = remaining_text[:max_len]
+                remaining_text = remaining_text[max_len:]
+            parts.append(current_part)
+            
+            # Отправляем первую часть (редактируем текущее сообщение)
+            await msg.edit_text(parts[0], parse_mode="HTML")
+            
+            # Остальные части отправляем новыми сообщениями
+            for part in parts[1:]:
+                await update.effective_message.reply_text(part, parse_mode="HTML")
+            
+            # Последнее сообщение с кнопкой
+            await update.effective_message.reply_text(
+                "✅ <b>Анализ завершен</b>",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode="HTML"
+            )
+        else:
+            await msg.edit_text(result_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
         
         save_drop_statistics(total_opened, loot)
         
