@@ -1160,9 +1160,12 @@ async def show_statistics(update: Update, context: ContextTypes.DEFAULT_TYPE):
         total_count = total_sessions['sessions_count'] if total_sessions else 0
         
         keyboard = [
-            [InlineKeyboardButton("🔄 Обновить", callback_data="stats")],
             [
-                InlineKeyboardButton(f"📊 Все сессии ({total_count})", callback_data="stats_all"),
+                InlineKeyboardButton("📊 Текущая", callback_data="stats"),
+                InlineKeyboardButton(f"📈 Все ({total_count})", callback_data="stats_all")
+            ],
+            [
+                InlineKeyboardButton("🔄 Обновить", callback_data="stats"),
                 InlineKeyboardButton("🗑️ Сбросить", callback_data="stats_reset")
             ],
             [InlineKeyboardButton("🏠 Меню", callback_data="menu")]
@@ -1295,9 +1298,12 @@ async def show_statistics_all(update: Update, context: ContextTypes.DEFAULT_TYPE
             text += f"  • {item}: ~{data['expected']:.0f} шт\n"
         
         keyboard = [
-            [InlineKeyboardButton("🔄 Обновить", callback_data="stats_all")],
             [
-                InlineKeyboardButton("📊 Последняя сессия", callback_data="stats"),
+                InlineKeyboardButton("📊 Текущая", callback_data="stats"),
+                InlineKeyboardButton(f"📈 Все ({stats['sessions_count']})", callback_data="stats_all")
+            ],
+            [
+                InlineKeyboardButton("🔄 Обновить", callback_data="stats_all"),
                 InlineKeyboardButton("🗑️ Сбросить", callback_data="stats_reset")
             ],
             [InlineKeyboardButton("🏠 Меню", callback_data="menu")]
@@ -1594,7 +1600,7 @@ async def show_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔴 Легендарный (≥50%)\n"
         "🟠 Эпический (20-50%)\n"
         "🟡 Редкий (10-20%)\n"
-        "🟢 Необычный (<10%)\n\n"
+        "🟢 Необычный (&lt;10%)\n\n"
         
         "━━━━━━━━━━━━━━━━━━━━━\n\n"
         
