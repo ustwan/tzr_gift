@@ -180,14 +180,12 @@ def get_inventory_items_socket(sock, include_all_sections=False):
 
 def open_gift_recursive(sock, gift_id, present_names):
     """Открывает подарок рекурсивно"""
-    # Черный список - предметы которые НЕ должны учитываться (перки из section 100000)
+    # Черный список - перки из section 100000 которые НЕ должны учитываться в статистике
     PERK_BLACKLIST = {
         "Capacity", "Energy weapons", "Panic", "Battle blindness", 
         "Heavy weapons", "Penalty-free shooting", "Radioation immunity",
         "Moving speed", "Rifles/SMGs", "Light weapons", "Insectary",
-        "Looting bonus", "Run fatigue", "Throwing weapons", "Melee weapons",
-        "Lab Chip U-INF M1", "Lab Chip U-PRT M1", "Lab Chip U-RNG M1",
-        "Lab Chip U-RDS M1", "Lab Chip U-GRP M1", "Lab Chip U-DMG M1"
+        "Looting bonus", "Run fatigue", "Throwing weapons", "Melee weapons"
     }
     
     use_xml = f'<USE gift="{gift_id}" />\x00'
