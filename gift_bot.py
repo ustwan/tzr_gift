@@ -489,7 +489,16 @@ async def analyze_presents(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for item_name, item_count in remaining:
                 result_text += f"  • {item_name}: {item_count}\n"
         
-        keyboard = [[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]
+        # Сохраняем данные в context для возможной коррекции
+        context.user_data['last_analysis'] = {
+            'total_opened': total_opened,
+            'loot': dict(loot)
+        }
+        
+        keyboard = [
+            [InlineKeyboardButton("🔍 Проверить инвентарь", callback_data="check_inventory_after_analysis")],
+            [InlineKeyboardButton("🏠 Меню", callback_data="menu")]
+        ]
         
         # Telegram имеет лимит 4096 символов на сообщение
         if len(result_text) > 4000:
@@ -539,6 +548,154 @@ async def analyze_presents(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.edit_text(
             f"❌ <b>Ошибка:</b>\n<code>{str(e)}</code>",
             reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode="HTML"
+        )
+
+async def check_inventory_after_analysis(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Проверить инвентарь после анализа для коррекции"""
+    query = update.callback_query
+    await query.answer()
+    
+    settings = load_settings()
+    
+    msg = await query.message.reply_text(
+        "🔍 <b>Проверка инвентаря</b>\n\n🔄 Подключение...",
+        parse_mode="HTML"
+    )
+    
+    try:
+        host = settings.get("HOST")
+        port = int(settings.get("port"))
+        login2 = settings.get("LOGIN_2")
+        key2 = settings.get("KEY_2")
+        local_ip2 = settings.get("local_ip_2")
+        client_ver2 = settings.get("client_ver_2")
+        v2 = settings.get("ver_2")
+        lang2 = settings.get("lang_2")
+        
+        login_xml = f'<LOGIN v3="{local_ip2}" lang="{lang2}" v2="{client_ver2}" v="{v2}" p="{key2}" l="{login2}" />\x00'
+        
+        with socket.create_connection((host, port), timeout=5) as sock:
+            sock.sendall(login_xml.encode("utf-8"))
+            sock.recv(65536)
+            
+            # Получаем текущий инвентарь
+            inv = get_inventory_items_socket(sock, include_all_sections=False)
+            
+            # Подсчитываем предметы
+            from collections import Counter
+            item_counts = Counter()
+            for item in inv:
+                item_counts[item['txt']] += item['count']
+            
+            # Получаем данные последнего анализа
+            last_analysis = context.user_data.get('last_analysis', {})
+            
+            if not last_analysis:
+                await msg.edit_text(
+                    "❌ <b>Нет данных анализа</b>\n\n"
+                    "Сначала выполните анализ подарков.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]),
+                    parse_mode="HTML"
+                )
+                return
+            
+            # Формируем текст
+            text = (
+                f"🔍 <b>Проверка инвентаря</b>\n\n"
+                f"📦 <b>Было анализировано:</b> {last_analysis['total_opened']} подарков\n\n"
+                f"📊 <b>Сейчас в инвентаре ({len(inv)} предметов):</b>\n\n"
+            )
+            
+            sorted_items = sorted(item_counts.items(), key=lambda x: -x[1])
+            for item_name, count in sorted_items[:20]:
+                text += f"  • {item_name}: <code>{count}</code>\n"
+            
+            if len(sorted_items) > 20:
+                text += f"\n<i>...и еще {len(sorted_items) - 20} типов</i>\n"
+            
+            text += (
+                f"\n\n⚠️ <b>Если данные неверны:</b>\n"
+                f"Нажмите <b>Пересохранить</b> чтобы использовать\n"
+                f"данные из инвентаря вместо анализа.\n\n"
+                f"<i>Полезно если в инвентаре были предметы до анализа.</i>"
+            )
+            
+            # Сохраняем данные инвентаря для пересохранения
+            context.user_data['inventory_check'] = dict(item_counts)
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton("💾 Пересохранить", callback_data="resave_analysis_from_inventory"),
+                    InlineKeyboardButton("❌ Отмена", callback_data="menu")
+                ]
+            ]
+            
+            await msg.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode="HTML")
+            
+    except Exception as e:
+        logger.error(f"Ошибка проверки инвентаря: {e}", exc_info=True)
+        await msg.edit_text(f"❌ Ошибка: {str(e)}", parse_mode="HTML")
+
+async def resave_analysis_from_inventory(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Пересохранить статистику используя данные из инвентаря"""
+    query = update.callback_query
+    await query.answer()
+    
+    last_analysis = context.user_data.get('last_analysis', {})
+    inventory_check = context.user_data.get('inventory_check', {})
+    
+    if not last_analysis or not inventory_check:
+        await query.message.reply_text(
+            "❌ Нет данных для пересохранения",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]),
+            parse_mode="HTML"
+        )
+        return
+    
+    try:
+        # Читаем файл статистики
+        try:
+            with open("drop_statistics.json", "r", encoding="utf-8") as f:
+                stats = json.load(f)
+        except:
+            stats = {"sessions": []}
+        
+        if "sessions" not in stats:
+            stats["sessions"] = []
+        
+        if stats["sessions"] and len(stats["sessions"]) > 0:
+            # Удаляем последнюю сессию
+            stats["sessions"].pop()
+            
+            # Сохраняем новую сессию с данными из инвентаря
+            new_session = {
+                "timestamp": datetime.now().isoformat(),
+                "total_opened": last_analysis['total_opened'],
+                "loot": inventory_check
+            }
+            stats["sessions"].append(new_session)
+            
+            with open("drop_statistics.json", "w", encoding="utf-8") as f:
+                json.dump(stats, f, ensure_ascii=False, indent=2)
+            
+            await query.message.reply_text(
+                "✅ <b>Статистика пересохранена</b>\n\n"
+                "Использованы реальные данные из инвентаря.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]),
+                parse_mode="HTML"
+            )
+        else:
+            await query.message.reply_text(
+                "❌ Нет сессий для пересохранения",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]),
+                parse_mode="HTML"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка пересохранения: {e}", exc_info=True)
+        await query.message.reply_text(
+            f"❌ Ошибка: {str(e)}",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]),
             parse_mode="HTML"
         )
 
@@ -727,7 +884,7 @@ async def send_gifts_execute(message, gift_id, count):
                         parse_mode="HTML"
                     )
                 
-                time.sleep(0.07)
+                time.sleep(0.03)  # Ускорена отправка
         
         keyboard = [[InlineKeyboardButton("🏠 Меню", callback_data="menu")]]
         await msg.edit_text(
@@ -869,7 +1026,7 @@ async def clean_inventory_execute(update: Update, context: ContextTypes.DEFAULT_
                     except socket.timeout:
                         pass
                     
-                    time.sleep(0.2)
+                    time.sleep(0.05)  # Ускорена очистка
                     
                     # Отмечаем как удаленный
                     deleted_ids.add(item['id'])
@@ -2043,6 +2200,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await reset_statistics(update, context)
     elif query.data == "stats_reset_confirm":
         await reset_statistics_confirm(update, context)
+    elif query.data == "check_inventory_after_analysis":
+        await check_inventory_after_analysis(update, context)
+    elif query.data == "resave_analysis_from_inventory":
+        await resave_analysis_from_inventory(update, context)
     elif query.data == "export":
         await export_menu(update, context)
     elif query.data == "export_stats":
